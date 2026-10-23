@@ -10,6 +10,7 @@ Herramienta ligera de capturas de pantalla para macOS. Selecciona una zona de la
   - Mantén **Shift** para ajustar líneas y flechas a 45° y dibujar cuadrados.
 - **Copiar** al portapapeles (PNG + TIFF) o **guardar** como PNG a resolución Retina completa.
 - Soporte para **varios monitores**.
+- **Abre al arrancar la Mac** (activado por defecto, se puede desactivar en Preferencias).
 - **Preferencias:** atajo personalizado, modo de guardado (preguntar o guardar directo en una carpeta), copiar al guardar, sonido e incluir el cursor.
 
 ## Atajos

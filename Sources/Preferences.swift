@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import ServiceManagement
 import SwiftUI
 
 /// User settings, persisted to UserDefaults on every change.
@@ -23,6 +24,24 @@ final class Prefs: ObservableObject {
     @Published var playSound: Bool { didSet { d.set(playSound, forKey: "playSound") } }
     @Published var showsCursor: Bool { didSet { d.set(showsCursor, forKey: "showsCursor") } }
 
+    /// Backed by the system login items rather than UserDefaults, so it stays accurate
+    /// if the user removes MiShot from System Settings → General → Login Items.
+    @Published var launchAtLogin = SMAppService.mainApp.status == .enabled {
+        didSet {
+            guard launchAtLogin != (SMAppService.mainApp.status == .enabled) else { return }
+            do {
+                if launchAtLogin {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                NSAlert(error: error).runModal()
+            }
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
+    }
+
     private init() {
         hotKeyCode = d.object(forKey: "hotKeyCode") as? UInt32 ?? UInt32(kVK_ANSI_9)
         hotKeyMods = d.object(forKey: "hotKeyMods") as? UInt32 ?? UInt32(cmdKey | shiftKey)
@@ -33,6 +52,14 @@ final class Prefs: ObservableObject {
         copyOnSave = d.bool(forKey: "copyOnSave")
         playSound = d.object(forKey: "playSound") as? Bool ?? true
         showsCursor = d.bool(forKey: "showsCursor")
+    }
+
+    /// Opts into launch at login once, on the very first run; afterwards the user's choice wins.
+    func enableLaunchAtLoginOnFirstRun() {
+        guard !d.bool(forKey: "didSetUpLaunchAtLogin") else { return }
+        d.set(true, forKey: "didSetUpLaunchAtLogin")
+        try? SMAppService.mainApp.register()
+        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
     func setHotKey(code: UInt32, mods: UInt32, label: String) {
@@ -81,6 +108,10 @@ struct PreferencesView: View {
 
     var body: some View {
         Form {
+            Section("General") {
+                Toggle("Abrir MiShot al arrancar la Mac", isOn: $prefs.launchAtLogin)
+            }
+
             Section("Atajo de teclado") {
                 LabeledContent("Capturar pantalla") {
                     HStack {

@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Prefs.shared.onHotKeyChange = { [weak self] in self?.registerHotKey() }
         registerHotKey()
+        Prefs.shared.enableLaunchAtLoginOnFirstRun()
 
         if !CGPreflightScreenCaptureAccess() {
             CGRequestScreenCaptureAccess()

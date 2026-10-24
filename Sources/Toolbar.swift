@@ -14,20 +14,22 @@ final class ToolbarView: NSView {
 
         stack.orientation = vertical ? .vertical : .horizontal
         stack.spacing = 2
-        stack.edgeInsets = NSEdgeInsets(top: 4, left: 4, bottom: 4, right: 4)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
+        // Padding lives here rather than in stack.edgeInsets: a vertical stack drops the
+        // left/right insets from its fitting size, squeezing the swatches against the edges.
+        let pad: CGFloat = 4
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: pad),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -pad),
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: pad),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -pad),
         ])
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func fit() { setFrameSize(stack.fittingSize) }
+    func fit() { setFrameSize(fittingSize) }
 
     override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
 
@@ -58,6 +60,10 @@ final class ToolButton: NSButton {
     override func mouseExited(with event: NSEvent) { isHovered = false }
     override func viewDidHide() { isHovered = false }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+
+    // SF Symbols give the button uneven top/bottom alignment insets, which makes the
+    // frame taller than 28pt and the hover/selected background off-center.
+    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
     convenience init(symbol: String, tip: String, target: AnyObject, action: Selector) {
         self.init(frame: NSRect(x: 0, y: 0, width: 28, height: 28))

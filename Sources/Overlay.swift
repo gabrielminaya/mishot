@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-private struct Handle {
+private struct Handle: Equatable {
     let dx: Int, dy: Int
 
     static let all = [(-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0)].map(Handle.init)
@@ -16,6 +16,25 @@ private struct Handle {
         if dx < 0 { minX = p.x } else if dx > 0 { maxX = p.x }
         if dy < 0 { minY = p.y } else if dy > 0 { maxY = p.y }
         return NSRect(x: min(minX, maxX), y: min(minY, maxY), width: abs(maxX - minX), height: abs(maxY - minY))
+    }
+
+    var cursor: NSCursor {
+        if #available(macOS 15, *) {
+            let pos: NSCursor.FrameResizePosition = switch (dx, dy) {
+            case (-1, -1): .bottomLeft
+            case (0, -1): .bottom
+            case (1, -1): .bottomRight
+            case (1, 0): .right
+            case (1, 1): .topRight
+            case (0, 1): .top
+            case (-1, 1): .topLeft
+            default: .left
+            }
+            return .frameResize(position: pos, directions: .all)
+        }
+        if dx == 0 { return .resizeUpDown }
+        if dy == 0 { return .resizeLeftRight }
+        return .crosshair
     }
 }
 
@@ -56,6 +75,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         case drawing
     }
     private var drag = Drag.none
+    private var hotHandle: Handle? { didSet { if hotHandle != oldValue { needsDisplay = true } } }
     private var scrollAccum: CGFloat = 0
 
     private var textField: NSTextField?
@@ -209,8 +229,10 @@ final class OverlayView: NSView, NSTextFieldDelegate {
 
         for h in Handle.all {
             let p = h.point(in: sel)
-            let r = NSRect(x: p.x - 3.5, y: p.y - 3.5, width: 7, height: 7)
-            NSColor.white.setFill()
+            let hot = h == hotHandle
+            let half: CGFloat = hot ? 5 : 3.5
+            let r = NSRect(x: p.x - half, y: p.y - half, width: half * 2, height: half * 2)
+            (hot ? NSColor.controlAccentColor : NSColor.white).setFill()
             r.fill()
             NSColor(white: 0, alpha: 0.6).setStroke()
             NSBezierPath(rect: r.insetBy(dx: 0.5, dy: 0.5)).stroke()
@@ -237,7 +259,52 @@ final class OverlayView: NSView, NSTextFieldDelegate {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect],
+                                       owner: self))
+    }
+
+    override func cursorUpdate(with event: NSEvent) { updateCursor(event) }
+    override func mouseMoved(with event: NSEvent) { updateCursor(event) }
+
+    /// Picks the cursor that tells what a click/drag would do at the mouse position.
+    private func updateCursor(_ event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        // Toolbars and the text field set their own cursors.
+        let overSubview = [sideBar, bottomBar].contains { !$0.isHidden && $0.frame.contains(p) }
+            || textField?.frame.contains(p) == true
+        let p2 = point(event)
+        if case .resizing(let h, _) = drag {
+            hotHandle = h
+        } else if case .none = drag, !overSubview, let sel = selection {
+            hotHandle = handle(at: p2, in: sel)
+        } else {
+            hotHandle = nil
+        }
+        if !overSubview { cursor(at: p2).set() }
+    }
+
+    private func cursor(at p: NSPoint) -> NSCursor {
+        switch drag {
+        case .moving: return .closedHand
+        case .resizing(let h, _): return h.cursor
+        case .creating, .drawing: return .crosshair
+        case .none: break
+        }
+        guard let sel = selection else { return .crosshair }
+        if let h = handle(at: p, in: sel) { return h.cursor }
+        if sel.contains(p) {
+            switch tool {
+            case nil: return .openHand
+            case .text: return .iBeam
+            default: return .crosshair
+            }
+        }
+        // Outside the selection a click only starts a new one if nothing has been drawn yet.
+        return annotations.isEmpty ? .crosshair : .arrow
+    }
 
     private func point(_ event: NSEvent) -> NSPoint {
         let p = convert(event.locationInWindow, from: nil)
@@ -252,6 +319,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     }
 
     override func mouseDown(with event: NSEvent) {
+        defer { updateCursor(event) }
         let p = point(event)
         if textField != nil {
             commitText()
@@ -286,6 +354,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        defer { updateCursor(event) }
         let p = point(event)
         switch drag {
         case .creating(let start):
@@ -317,6 +386,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         }
         drag = .none
         layoutBars()
+        updateCursor(event)
     }
 
     override func scrollWheel(with event: NSEvent) {

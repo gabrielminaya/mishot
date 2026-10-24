@@ -36,12 +36,28 @@ final class ToolbarView: NSView {
 }
 
 final class ToolButton: NSButton {
-    var isOn = false {
-        didSet {
-            layer?.backgroundColor = isOn ? NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor : nil
-            contentTintColor = isOn ? .controlAccentColor : NSColor(white: 0.2, alpha: 1)
-        }
+    var isOn = false { didSet { refresh() } }
+    private var isHovered = false { didSet { refresh() } }
+    private var hoverArea: NSTrackingArea?
+
+    private func refresh() {
+        layer?.backgroundColor = isOn ? NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor
+            : isHovered ? NSColor(white: 0, alpha: 0.08).cgColor : nil
+        contentTintColor = isOn ? .controlAccentColor : NSColor(white: 0.2, alpha: 1)
     }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
+        addTrackingArea(area)
+        hoverArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent) { isHovered = false }
+    override func viewDidHide() { isHovered = false }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
 
     convenience init(symbol: String, tip: String, target: AnyObject, action: Selector) {
         self.init(frame: NSRect(x: 0, y: 0, width: 28, height: 28))
@@ -91,6 +107,8 @@ final class SwatchView: NSView {
             ring.stroke()
         }
     }
+
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
 
     override func mouseDown(with event: NSEvent) { onTap() }
 }

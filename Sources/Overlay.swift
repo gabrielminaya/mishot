@@ -111,7 +111,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         }
         for pair in stride(from: 0, to: swatches.count, by: 2) {
             let row = NSStackView(views: Array(swatches[pair..<min(pair + 2, swatches.count)]))
-            row.spacing = 3
+            row.spacing = 4
             sideBar.stack.addArrangedSubview(row)
         }
         widthLabel.font = .monospacedDigitSystemFont(ofSize: 10, weight: .medium)
